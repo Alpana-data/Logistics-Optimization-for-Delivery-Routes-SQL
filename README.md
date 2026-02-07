@@ -26,11 +26,3 @@ Data Cleaning & Preparation, Delivery Delay Analysis, Route Optimization Insight
 --> They should be taught time management by familiarising them with routes and not rotating routes for agents.
 
 --> Increase knowledge transfer programs by pairing top performers with bottom performers.
-
-# Files included 
-
-Dataset - Dataset in .csv
-
-PPT of Project - Powerpoint Presentation for the insights recommendations 
-
-SQL Script file - Approach sheet in SQL Script
