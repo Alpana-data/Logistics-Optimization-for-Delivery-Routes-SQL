@@ -1,0 +1,131 @@
+Approach Sheet for Logistics Optimization for Delivery routes SQL
+use project_db;
+
+select * from Shipments;
+select * from warehouses;
+select * from orders;
+select * from routes;
+select * from delivery_agents;
+
+-- Task 1
+
+select s.Order_ID as Shipment_order_ID, o.Order_ID as Orders_Order_ID 
+from Shipments s left Join Orders o on s.Order_ID = o.Order_ID  where o.Order_ID is NULL;
+select s.Route_ID as S_Route_ID, r.Route_ID as R_Route_ID 
+from Shipments s left Join Routes r on s.Route_ID  = r.Route_ID  where r.Route_ID is NULL;
+
+select s.Warehouse_ID as S_Warehouse_ID, w.Warehouse_ID as w_Warehouse_ID 
+from Shipments s left Join Warehouses w on s.Warehouse_ID  = w.Warehouse_ID  where w.Warehouse_ID is NULL;
+
+select distinct(order_ID) from Orders;
+SELECT Order_ID, COUNT(*) AS cnt FROM Orders GROUP BY Order_ID HAVING COUNT(*) > 1;
+SELECT Shipment_ID, COUNT(*) AS cnt FROM Shipments GROUP BY Shipment_ID HAVING COUNT(*) > 1;
+select distinct(order_ID) from Shipments;
+select * from orders where order_ID is null;
+select * from Shipments where Shipment_ID is null;
+select Distinct(Route_ID), avg(Delay_Hours) as Avg_Delay from Shipments group by Route_ID;
+
+-- Task 2
+
+-- Task 2.1
+SELECT Shipment_ID, Pickup_Date, Delivery_Date, TIMESTAMPDIFF(HOUR, Pickup_Date, Delivery_Date) AS Delivery_Delay_in_Hours FROM Shipments;
+-- Task 2.2
+select Route_ID as delayed_routes, round(Avg(Delay_Hours),2) as Avg_Delay_Hours from Shipments group by Route_ID order by Route_ID desc limit 10;
+-- Task 2.3
+select Warehouse_ID, Shipment_ID, Delay_Hours, Rank() over (partition by Warehouse_ID order by Delay_Hours desc) as Shipment_Rank from Shipments;
+select * from orders;
+-- Task 2.4
+select o.Delivery_Type,  round(Avg(s.Delay_Hours),2) as Type_Avg_Delay, Avg(round(avg(Delay_Hours),2)) over() as Avg_Delay from Shipments s Inner join orders o on s.Order_ID = o.Order_ID group by o.Delivery_Type;
+
+select o.Delivery_Type,  round(Avg(s.Delay_Hours),2) as Type_Avg_Delay from Shipments s Inner join orders o on s.Order_ID = o.Order_ID group by o.Delivery_Type;
+
+-- Task 3
+
+-- Task 3.1
+select s.Shipment_ID, r.Route_ID, r.Avg_Transit_Time_Hours from Shipments s Right join Routes r on s.Route_ID = r.Route_ID order by s.Shipment_ID; 
+-- Task 3.2
+select Route_ID, round(avg(Delay_Hours),2) as Average_Delay_Hours from Shipments group by Route_ID order by Route_ID;
+-- Task 3.3
+select Route_ID, round((Distance_KM/Avg_Transit_Time_Hours),2) as Distance_Time_Efficiency_ratio from Routes;
+-- Task 3.4
+select Route_ID, round((Distance_KM/Avg_Transit_Time_Hours),2) as Distance_Time_Efficiency_ratio from Routes order by Distance_Time_Efficiency_ratio asc limit 3;
+-- Task 3.5
+select Route_ID, round(100.0* sum(case when Delay_Hours > 0 then 1 else 0 end) / count(*), 2 ) as delayed_percentage,
+Count(*) as Total_Shipments from Shipments group by Route_ID having 100.0* sum(case when Delay_Hours > 0 then 1 else 0 end) / count(*) > 20 order by Route_ID Asc;
+
+-- Task 4
+
+select count(Delay_Reason) as all_delay from Shipments where Delay_Reason = 'No Delay';
+select Delay_Hours, Delay_Reason from Shipments where Delay_hours = 0;
+-- Task 4.1
+select Warehouse_ID, count(Shipment_ID) as Total_Shipments, round(avg(Delay_Hours),2) as Highest_Avg_Delay from Shipments group by Warehouse_ID order by Highest_Avg_Delay desc limit 3;
+-- Task 4.2
+select Warehouse_ID, count(Shipment_ID) as Total_Shipments , count(case when Delay_Reason <> 'No Delay' then 1 End) as Delayed_Shipments from Shipments group by Warehouse_ID order by Warehouse_ID;
+-- Task 4.3 
+with Global_Avg_Delay as (select Warehouse_ID, round(avg(Delay_Hours),2) as Avg_delay , avg(round(avg(Delay_Hours),2)) over() as Global_Avg_Delay from Shipments  group by Warehouse_ID) select * from  Global_Avg_Delay where Avg_Delay > Global_Avg_Delay;
+-- Task 4.4
+with warehouse_performance as ( select warehouse_ID, count(*) as Total_Shipments, 
+round(100.0 * sum(case when Delay_Hours = '0' then 1 else 0 end) / count(*), 2) 
+as on_time_delivery_pct from Shipments group by Warehouse_ID)
+select Warehouse_ID, on_time_delivery_pct, rank() over(order by on_time_delivery_pct desc) 
+as warehouse_rank from warehouse_performance;
+
+-- Task 5
+
+-- Task 5.1
+with Del_Agent_Performance as ( 
+ select Agent_ID, Route_ID, round(100.0 * sum(case when Delay_Hours = 0 then 1 else 0 end) / count(*), 2) 
+ as on_time_del_pct from Shipments group by Agent_ID, Route_ID)
+ select Agent_ID, Route_ID, on_time_del_pct, dense_rank() over(partition by Route_ID order by on_time_del_pct desc) Del_Agent_rank
+ from Del_Agent_Performance;
+
+
+-- task 5.2
+with Del_Agent as ( 
+ select Agent_ID, round(100.0 * sum(case when Delay_Hours = 0 then 1 else 0 end) / count(*), 2) 
+ as on_time_del_pct from Shipments group by Agent_ID)
+ select Agent_ID, on_time_del_pct from Del_Agent where on_time_del_pct < 85 order by on_time_del_pct desc;
+ 
+ -- Task 5.3
+ select Agent_group,Avg_Experience_Years, Avg_rating from ((select "Top 5 Agents" as Agent_group, round(Avg(Experience_Years),2) as avg_Experience_years, 
+ round(avg(avg_rating),2) as avg_rating from (select Agent_ID, Experience_Years, Avg_rating 
+ from delivery_agents order by avg_rating desc limit 5) Top_Agents) union all 
+ (select "Bottom 5 Agents" as Agent_group, round(Avg(Experience_Years),2) as avg_Experience_years, 
+ round(avg(avg_rating),2) as avg_rating from (select Agent_ID, Experience_Years, Avg_rating 
+ from delivery_agents order by avg_rating Asc limit 5) Bottom_Agents )) Agent_group;
+ 
+ -- Task 6
+ 
+ -- Task 6.1
+--
+select Shipment_ID, Delivery_status as latest_status, date(Delivery_Date) as latest_Delivery_Date
+ from (select *, row_number() over(partition by Shipment_ID order by Delivery_Date desc) rn from Shipments )t;
+ 
+ -- Task 6.2
+ select Route_ID, count(*) total_Shipments, sum(case when Delivery_Status IN ('In Transit', 'Returned') then 1 else 0 end
+ ) as In_transit_Returned_Shipments from Shipments group by route_ID order by In_transit_Returned_Shipments desc;
+ 
+ -- Task 6.3
+ select  Delay_Reason, count(*) as Total_Delays
+ from Shipments where Delay_reason Not IN ('No Delay') group by Delay_Reason order by Total_Delays desc limit 1;
+ 
+ -- Task 6.4
+ select order_ID, Delay_Hours from Shipments where Delay_Hours >120 order by Delay_Hours desc;
+ 
+ -- Task 7 
+ -- Task 7.1
+select  r.Source_country, round(avg(s.delay_hours),2) as avg_delay from Shipments s inner join Routes r on s.Route_ID = r.Route_ID group by r.Source_Country order by avg_delay desc;
+
+-- Task 7.2
+select count(Delay_Hours) from Shipments where Delay_Hours = 0;
+select round(100.0 * sum(case when Delay_Hours = 0 then 1 else 0 end )/ Count(*),2) as On_Time_Delivery_Percentage from Shipments;
+
+-- Task 7.3
+select Route_ID, round(avg(Delay_Hours),2) as Avg_Delay_Hours from shipments group by Route_ID order by Route_ID Asc;
+
+-- Task 7.4
+select s.Warehouse_ID, round((100.0 * count(s.Shipment_ID)/ w.Capacity_per_day),2) 
+as Warehouse_Utilization_Percentage 
+from Shipments s inner join warehouses w on s.warehouse_ID = w.warehouse_ID group by Warehouse_ID, w.Capacity_per_day
+order by Warehouse_Utilization_Percentage desc;
+
